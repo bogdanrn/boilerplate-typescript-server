@@ -1,0 +1,84 @@
+services:
+  app:
+    container_name: app
+    image: node:20-alpine
+    networks:
+      - app-network
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    volumes:
+      - .:/home/node/app
+      - node_modules:/home/node/app/node_modules
+    working_dir: /home/node/app/
+    command: sh -c "yarn install && yarn dev"
+    depends_on:
+      db-postgis:
+        condition: service_healthy
+      db-mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    env_file: .env
+
+  db-postgis:
+    platform: linux/amd64
+    container_name: db-postgis
+    image: postgis/postgis:13-master
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_DATABASE_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE_NAME}
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - app-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "--host=localhost",
+          "--username=${POSTGRES_DATABASE_USERNAME}",
+          "--dbname=${POSTGRES_DATABASE_NAME}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_interval: 5s
+      start_period: 30s
+  db-mongo:
+    restart: unless-stopped
+    container_name: db-mongo
+    image: mongo:latest
+    ports:
+      - "${MONGO_DATABASE_PORT}:27017"
+    command:
+      - --storageEngine=wiredTiger
+    volumes:
+      - mongodata:/data/db
+    logging:
+      driver: none
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_DATABASE_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_DATABASE_PASSWORD}
+    networks:
+      - app-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'echo ''db.runCommand("ping").ok'' | mongosh localhost:27017/test --quiet',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+volumes:
+  mongodata:
+  pgdata:
+  node_modules:
+networks:
+  app-network:
+    name: AppNetwork
+    driver: bridge
