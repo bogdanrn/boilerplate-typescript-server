@@ -23,6 +23,7 @@ services:
     platform: linux/amd64
     container_name: db-postgis
     image: postgis/postgis:13-master
+    attach: false
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
@@ -51,6 +52,7 @@ services:
     restart: unless-stopped
     container_name: db-mongo
     image: mongo:latest
+    attach: false
     ports:
       - "${MONGO_DATABASE_PORT}:27017"
     command:
